@@ -4,7 +4,6 @@ import asyncio
 from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
-import uvicorn
 
 # --- Configuration ---
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -12,7 +11,13 @@ ADMIN_ID = int(os.environ.get("ADMIN_USER_ID", 0))
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 PORT = int(os.environ.get('PORT', 8080))
 
-# --- Flask App (Uvicorn इसे चलाएगा) ---
+# Configuration validation
+if not TOKEN:
+    raise ValueError("TELEGRAM_BOT_TOKEN environment variable is required")
+if not CHANNEL_ID:
+    raise ValueError("CHANNEL_ID environment variable is required")
+
+# --- Flask App ---
 flask_app = Flask('')
 
 @flask_app.route('/')
@@ -57,31 +62,32 @@ async def post_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print(f"Error posting video: {e}")
         await update.message.reply_text(f"कुछ एरर आ गया! 😢\nएरर: {e}")
 
-# --- Main Execution Block (नया और बेहतर तरीका) ---
-async def run_bot_polling():
-    """Bot को सेटअप करता है और हमेशा के लिए चलाता है"""
-    print("Bot polling task started.")
-    application = Application.builder().token(TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("postvideo", post_video))
+# --- Bot Runner Function ---
+def run_bot_polling():
+    """Sets up and runs the bot's polling loop."""
+    print("Bot polling thread started.")
     
-    print("Poster Bot is starting polling...")
-    await application.run_polling(allowed_updates=Update.ALL_TYPES)
+    # नया event loop बनाएं और सेट करें
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        application = Application.builder().token(TOKEN).build()
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("postvideo", post_video))
+        
+        print("Poster Bot is starting polling...")
+        loop.run_until_complete(application.run_polling(allowed_updates=Update.ALL_TYPES))
+    except Exception as e:
+        print(f"Bot polling error: {e}")
+    finally:
+        loop.close()
 
-async def main():
-    """Flask और Bot को एक साथ चलाता है"""
-    print("Main function started.")
-    
-    # Uvicorn का इस्तेमाल करके Flask सर्वर चलाएं
-    server_config = uvicorn.Config(flask_app, host="0.0.0.0", port=PORT)
-    server = uvicorn.Server(server_config)
-    
-    # दोनों को एक साथ चलाएं
-    await asyncio.gather(
-        server.serve(),
-        run_bot_polling()
-    )
-
+# --- Main Execution ---
 if __name__ == "__main__":
-    print("Starting application...")
-    asyncio.run(main())
+    print("Starting bot in a background thread...")
+    bot_thread = threading.Thread(target=run_bot_polling, daemon=True)
+    bot_thread.start()
+    
+    # Flask ऐप चलाएं
+    flask_app.run(host='0.0.0.0', port=PORT, debug=False)
