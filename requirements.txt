@@ -1,5 +1,2 @@
 python-telegram-bot==20.7
-python-dotenv==1.0.0
-gunicorn==21.2.0
-uvicorn==0.29.0
-uvicorn-worker==0.3.0  # Uvicorn worker for Gunicorn :cite[3]:cite[10]
+python-dotenv==1.0.1
