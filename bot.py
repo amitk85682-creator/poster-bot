@@ -5,16 +5,19 @@ from telegram.error import TelegramError
 import os
 from dotenv import load_dotenv
 
+# Logging setup
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
+# Load environment variables
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "").split(",") if id]
 
+# Admin-only decorator
 def admin_only(func):
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
@@ -24,9 +27,11 @@ def admin_only(func):
         return await func(update, context)
     return wrapper
 
+# /start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("हाय! मैं MyVideoPoster बॉट हूँ। /postvideo कमांड का उपयोग करके वीडियो और थंबनेल पोस्ट करें।")
 
+# /postvideo command
 @admin_only
 async def post_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) != 3:
@@ -50,6 +55,7 @@ async def post_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"एरर: {e.message}")
         logger.error(f"वीडियो पोस्ट करने में त्रुटि: {e}")
 
+# Error handler
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f"अपडेट {update} के कारण त्रुटि: {context.error}")
     if update:
