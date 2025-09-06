@@ -1,106 +1,79 @@
-import os
 import logging
-from typing import Final
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.error import TelegramError
+import os
 from dotenv import load_dotenv
-from telegram import Update, InputFile
-from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
-# Load environment variables
-load_dotenv()
-
-# Configuration from environment variables
-BOT_TOKEN: Final = os.getenv('BOT_TOKEN')
-ADMIN_IDS = [int(id_str) for id_str in os.getenv('ADMIN_IDS', '').split(',') if id_str]
-TARGET_CHANNEL: Final = os.getenv('TARGET_CHANNEL', '')
-
-# Configure logging
+# लॉगिंग सेटअप
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /start command"""
-    await update.message.reply_text('नमस्ते! मैं MyVideoPoster बॉट हूँ। /postvideo कमांड का उपयोग करें।')
+# पर्यावरण चर लोड करें (.env फाइल से)
+load_dotenv()
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHANNEL_ID = os.getenv("CHANNEL_ID")
+ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "").split(",") if id]
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /help command"""
-    help_text = """
-    Available Commands:
-    /start - बॉट शुरू करें
-    /help - सहायता देखें
-    /postvideo <movie_name> <video_file_id> <thumbnail_file_id> - कस्टम थंबनेल के साथ वीडियो पोस्ट करें
-    """
-    await update.message.reply_text(help_text)
+# एडमिन चेक करने के लिए डेकोरेटर
+def admin_only(func):
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id
+        if user_id not in ADMIN_IDS:
+            await update.message.reply_text("यह कमांड केवल एडमिन्स के लिए है!")
+            return
+        return await func(update, context)
+    return wrapper
 
-def is_admin(user_id: int) -> bool:
-    """Check if user is admin"""
-    return user_id in ADMIN_IDS
+# /start कमांड
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("हाय! मैं MyVideoPoster बॉट हूँ। /postvideo कमांड का उपयोग करके वीडियो और थंबनेल पोस्ट करें।")
 
-async def postvideo_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /postvideo command"""
-    user_id = update.effective_user.id
-    
-    # Admin check
-    if not is_admin(user_id):
-        await update.message.reply_text("⚠️ अनुमति denied. केवल administrators इस कमांड का उपयोग कर सकते हैं।")
+# /postvideo कमांड
+@admin_only
+async def post_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if len(context.args) != 3:
+        await update.message.reply_text(
+            "उपयोग: /postvideo <मूवी_का_नाम> <वीडियो_file_id> <थंबनेल_file_id>"
+        )
         return
-    
-    # Validate arguments
-    if len(context.args) < 3:
-        await update.message.reply_text("❌ Invalid format. Use: /postvideo <movie_name> <video_file_id> <thumbnail_file_id>")
-        return
-    
-    movie_name = context.args[0]
-    video_file_id = context.args[1]
-    thumbnail_file_id = context.args[2]
-    
+
+    movie_name, video_file_id, thumbnail_file_id = context.args
+
     try:
-        # Send video with custom thumbnail
+        # वीडियो को चैनल पर कस्टम थंबनेल के साथ भेजें
         await context.bot.send_video(
-            chat_id=TARGET_CHANNEL,
+            chat_id=CHANNEL_ID,
             video=video_file_id,
             thumb=thumbnail_file_id,
-            caption=movie_name,
+            caption=f"🎬 {movie_name}",
             supports_streaming=True
         )
-        
-        await update.message.reply_text("✅ वीडियो सफलतापूर्वक पोस्ट किया गया!")
-        
-    except Exception as e:
-        error_message = f"❌ Error posting video: {str(e)}"
-        logger.error(error_message)
-        await update.message.reply_text(error_message)
+        await update.message.reply_text(f"वीडियो '{movie_name}' सफलतापूर्वक {CHANNEL_ID} पर पोस्ट हो गया!")
+    except TelegramError as e:
+        await update.message.reply_text(f"एरर: {e.message}")
+        logger.error(f"वीडियो पोस्ट करने में त्रुटि: {e}")
 
+# एरर हैंडलर
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle errors"""
-    logger.error(f"Update {update} caused error {context.error}")
-    
-    if update and update.message:
-        await update.message.reply_text("❌ An error occurred while processing your request.")
+    logger.error(f"अपडेट {update} के कारण त्रुटि: {context.error}")
+    if update:
+        await update.message.reply_text("कुछ गलत हुआ। कृपया बाद में पुनः प्रयास करें।")
 
 def main():
-    """Start the bot"""
-    if not BOT_TOKEN:
-        raise ValueError("BOT_TOKEN environment variable not set")
-    
-    if not ADMIN_IDS:
-        logger.warning("No ADMIN_IDS set - anyone will be able to use admin commands")
-    
-    # Create application
+    # बॉट शुरू करें
     application = Application.builder().token(BOT_TOKEN).build()
-    
-    # Add handlers
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("postvideo", postvideo_command))
-    
-    # Add error handler
+
+    # कमांड्स रजिस्टर करें
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("postvideo", post_video))
+
+    # एरर हैंडलर जोड़ें
     application.add_error_handler(error_handler)
-    
-    # Start bot
-    logger.info("Bot starting...")
+
+    # बॉट शुरू करें
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
