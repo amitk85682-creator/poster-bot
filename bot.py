@@ -1,115 +1,107 @@
 import os
-import asyncio
-from flask import Flask, request
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+import logging
+from typing import Final
+from dotenv import load_dotenv
+from telegram import Update, InputFile
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
-# --- Configuration ---
-TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-ADMIN_ID = int(os.environ.get("ADMIN_USER_ID", 0))
-CHANNEL_ID = os.environ.get("CHANNEL_ID")
-PORT = int(os.environ.get('PORT', 8080))
-# Render.com आपको एक URL देता है, उसे यहाँ डालें या Environment Variable से लें
-WEBHOOK_URL = os.environ.get("RENDER_EXTERNAL_URL") 
+# Load environment variables
+load_dotenv()
 
-# Configuration validation
-if not TOKEN:
-    raise ValueError("TELEGRAM_BOT_TOKEN environment variable is required")
-if not CHANNEL_ID:
-    raise ValueError("CHANNEL_ID environment variable is required")
+# Configuration from environment variables
+BOT_TOKEN: Final = os.getenv('BOT_TOKEN')
+ADMIN_IDS = [int(id_str) for id_str in os.getenv('ADMIN_IDS', '').split(',') if id_str]
+TARGET_CHANNEL: Final = os.getenv('TARGET_CHANNEL', '')
 
-# --- Telegram Bot Logic ---
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Sends a welcome message."""
-    await update.message.reply_text(
-        "नमस्ते! मैं आपका Video Poster Bot हूँ।\n"
-        "इस्तेमाल करें: /postvideo <मूवी का नाम> <वीडियो_id> <थंबनेल_id>"
-    )
+# Configure logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
-async def post_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Posts a video with a custom thumbnail."""
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("माफ़ कीजियेगा, यह कमांड सिर्फ एडमिन के लिए है।")
-        return
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /start command"""
+    await update.message.reply_text('नमस्ते! मैं MyVideoPoster बॉट हूँ। /postvideo कमांड का उपयोग करें।')
 
-    args = context.args
-    if len(args) < 3:
-        await update.message.reply_text(
-            "गलत फॉर्मेट! /postvideo \"मूवी का नाम\" <वीडियो_id> <थंबनेल_id>"
-        )
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /help command"""
+    help_text = """
+    Available Commands:
+    /start - बॉट शुरू करें
+    /help - सहायता देखें
+    /postvideo <movie_name> <video_file_id> <thumbnail_file_id> - कस्टम थंबनेल के साथ वीडियो पोस्ट करें
+    """
+    await update.message.reply_text(help_text)
+
+def is_admin(user_id: int) -> bool:
+    """Check if user is admin"""
+    return user_id in ADMIN_IDS
+
+async def postvideo_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /postvideo command"""
+    user_id = update.effective_user.id
+    
+    # Admin check
+    if not is_admin(user_id):
+        await update.message.reply_text("⚠️ अनुमति denied. केवल administrators इस कमांड का उपयोग कर सकते हैं।")
         return
     
-    thumbnail_file_id = args[-1]
-    video_file_id = args[-2]
-    movie_name = " ".join(args[:-2])
-
+    # Validate arguments
+    if len(context.args) < 3:
+        await update.message.reply_text("❌ Invalid format. Use: /postvideo <movie_name> <video_file_id> <thumbnail_file_id>")
+        return
+    
+    movie_name = context.args[0]
+    video_file_id = context.args[1]
+    thumbnail_file_id = context.args[2]
+    
     try:
+        # Send video with custom thumbnail
         await context.bot.send_video(
-            chat_id=CHANNEL_ID,
+            chat_id=TARGET_CHANNEL,
             video=video_file_id,
             thumb=thumbnail_file_id,
-            caption=f"🎬 **{movie_name}**\n\n*Join for more updates!*",
-            parse_mode='Markdown'
+            caption=movie_name,
+            supports_streaming=True
         )
-        await update.message.reply_text(f"बढ़िया! '{movie_name}' आपके चैनल पर सफलतापूर्वक पोस्ट हो गया है। ✅")
+        
+        await update.message.reply_text("✅ वीडियो सफलतापूर्वक पोस्ट किया गया!")
+        
     except Exception as e:
-        print(f"Error posting video: {e}")
-        await update.message.reply_text(f"कुछ एरर आ गया! 😢\nएरर: {e}")
+        error_message = f"❌ Error posting video: {str(e)}"
+        logger.error(error_message)
+        await update.message.reply_text(error_message)
 
-# --- Bot and Flask Setup ---
-async def main():
-    """Sets up the bot application and webhook."""
-    # PTB Application को बनाएं
-    application = Application.builder().token(TOKEN).build()
-
-    # Handlers जोड़ें
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("postvideo", post_video))
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle errors"""
+    logger.error(f"Update {update} caused error {context.error}")
     
-    # Webhook सेट करें
-    if WEBHOOK_URL:
-        await application.bot.set_webhook(url=f"{WEBHOOK_URL}/{TOKEN}")
-        print(f"Webhook set to {WEBHOOK_URL}/{TOKEN}")
-    else:
-        print("WEBHOOK_URL not found, running in polling mode for local testing.")
-        # यह हिस्सा सिर्फ लोकल टेस्टिंग के लिए है, Render पर नहीं चलेगा
-        await application.run_polling(allowed_updates=Update.ALL_TYPES)
-        return
+    if update and update.message:
+        await update.message.reply_text("❌ An error occurred while processing your request.")
 
-    # इस एप्लीकेशन को ग्लोबल करें ताकि Flask इसे इस्तेमाल कर सके
-    # (यह एक आसान तरीका है, बड़े ऐप्स के लिए और बेहतर तरीके हो सकते हैं)
-    flask_app.ptb_app = application
+def main():
+    """Start the bot"""
+    if not BOT_TOKEN:
+        raise ValueError("BOT_TOKEN environment variable not set")
     
-    # यह सुनिश्चित करें कि बॉट ठीक से शुरू हो गया है
-    async with application:
-        await application.start()
-        # Flask ऐप को चलाएं (यह Gunicorn द्वारा किया जाएगा, इसलिए यह लाइन Render पर नहीं चलेगी)
-        # flask_app.run(host='0.0.0.0', port=PORT, debug=False)
-        # We need to keep the main async function running
-        await asyncio.Event().wait()
-
-
-# --- Flask App ---
-flask_app = Flask('')
-
-@flask_app.route('/')
-def home():
-    return "Poster Bot is running with Webhooks!"
-
-@flask_app.route(f'/{TOKEN}', methods=['POST'])
-async def telegram_webhook():
-    """यह फंक्शन टेलीग्राम से आने वाले सभी अपडेट्स को हैंडल करता है।"""
-    update_data = request.get_json()
-    update = Update.de_json(data=update_data, bot=flask_app.ptb_app.bot)
-    await flask_app.ptb_app.process_update(update)
-    return 'ok'
+    if not ADMIN_IDS:
+        logger.warning("No ADMIN_IDS set - anyone will be able to use admin commands")
+    
+    # Create application
+    application = Application.builder().token(BOT_TOKEN).build()
+    
+    # Add handlers
+    application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("postvideo", postvideo_command))
+    
+    # Add error handler
+    application.add_error_handler(error_handler)
+    
+    # Start bot
+    logger.info("Bot starting...")
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
-    # नया event loop बनाएं और main() फंक्शन चलाएं
-    loop = asyncio.get_event_loop()
-    if loop.is_running():
-        # अगर लूप पहले से चल रहा है (जैसे कुछ IDEs में), तो एक नया task बनाएं
-        loop.create_task(main())
-    else:
-        # वरना, लूप को चलाएं
-        loop.run_until_complete(main())
+    main()
