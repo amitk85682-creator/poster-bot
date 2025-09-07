@@ -1,21 +1,11 @@
 #!/usr/bin/env python3
-"""
-MyVideoPoster
-A simple admin-only bot that can:
-  /start      – alive check
-  /postvideo  – post video with custom thumbnail
-"""
-
-import os
-import html
-import logging
+import os, html, logging
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from telegram.constants import ParseMode
 
 load_dotenv()
-
 BOT_TOKEN  = os.getenv("BOT_TOKEN")
 ADMIN_ID   = int(os.getenv("ADMIN_ID"))
 CHANNEL_ID = os.getenv("CHANNEL_ID")
@@ -26,11 +16,9 @@ logging.basicConfig(
 )
 log = logging.getLogger("MyVideoPoster")
 
-# ---------- helpers ----------
-def is_admin(user_id: int) -> bool:
-    return user_id == ADMIN_ID
+def is_admin(uid: int) -> bool:
+    return uid == ADMIN_ID
 
-# ---------- handlers ----------
 async def start(update: Update, _: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🤖 MyVideoPoster is alive!\nUse /postvideo to upload.")
 
@@ -70,7 +58,6 @@ async def postvideo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
         log.exception("postvideo failed")
 
-# ---------- main ----------
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
