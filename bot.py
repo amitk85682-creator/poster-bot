@@ -3,18 +3,34 @@ import os
 import re
 import html
 import logging
+import threading
+from flask import Flask
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from telegram.constants import ParseMode
 from urllib.parse import urlparse
 
-# --- Environment Variable Setup ---
+# --- Flask Web Server Setup (to keep Render's Free Web Service alive) ---
+app = Flask(__name__)
+
+@app.route('/')
+def hello_world():
+    return 'Bot is running!'
+
+def run_web_server():
+    # Render provides the PORT environment variable.
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port)
+
+# --- Telegram Bot Setup ---
+# Load environment variables
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = os.getenv("ADMIN_ID")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 
+# Validate environment variables
 if not all([BOT_TOKEN, ADMIN_ID, CHANNEL_ID]):
     raise ValueError("Missing required environment variables. Please check your .env file.")
 try:
@@ -22,21 +38,19 @@ try:
 except ValueError:
     raise ValueError("ADMIN_ID in your .env file must be a valid integer.")
 
-# --- Logging Setup ---
+# Setup logging
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     level=logging.INFO
 )
 log = logging.getLogger("HybridVideoPoster")
 
-# --- Helper Functions ---
+# Helper Functions
 def is_admin(uid: int) -> bool:
     return uid == ADMIN_ID
 
 def gdrive_direct(url: str) -> str:
-    patterns = [
-        r"/d/([-\w]{25,})", r"id=([-\w]{25,})", r"folders/([-\w]{25,})"
-    ]
+    patterns = [r"/d/([-\w]{25,})", r"id=([-\w]{25,})", r"folders/([-\w]{25,})"]
     file_id = None
     for pattern in patterns:
         match = re.search(pattern, url)
@@ -46,61 +60,47 @@ def gdrive_direct(url: str) -> str:
         raise ValueError("Invalid G-Drive link: Could not extract file ID.")
     return f"https://drive.google.com/uc?id={file_id}&export=download"
 
-# --- Command Handlers ---
+# Command Handlers
 async def start(update: Update, _: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    await update.message.reply_text(
-        f"🤖 नमस्ते {user.first_name}!\n\n"
-        "मैं एक हाइब्रिड वीडियो पोस्टर बॉट हूँ।\n\n"
-        "🔹 /postdrive: छोटी वीडियो (<50MB) को G-Drive लिंक से पोस्ट करें।\n"
-        "🔹 /postvideo: बड़ी वीडियो को file_id से पोस्ट करें।\n\n"
-        "ये कमांड केवल एडमिन के लिए हैं।"
-    )
+    await update.message.reply_text("🤖 Bot is running! Use /postdrive or /postvideo.")
 
 async def postdrive(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
-        await update.message.reply_text("❌ यह कमांड केवल एडमिन के लिए है।"); return
+        await update.message.reply_text("❌ Admin only."); return
     if len(ctx.args) < 3:
-        await update.message.reply_text(
-            "✅ <b>Usage:</b>\n<code>/postdrive \"Title\" GDriveLink ThumbLink</code>\n(Note: Only for videos < 50MB).",
-            parse_mode=ParseMode.HTML); return
+        await update.message.reply_text("✅ <b>Usage:</b>\n<code>/postdrive \"Title\" GDriveLink ThumbLink</code>", parse_mode=ParseMode.HTML); return
     try:
         title = ctx.args[0]
-        caption = f"🎬 <b>{html.escape(title)}</b>"
-        await update.message.reply_text("⏳ गूगल ड्राइव से वीडियो पोस्ट किया जा रहा है...")
+        await update.message.reply_text(f"⏳ Posting '{title}' from G-Drive...")
         await ctx.bot.send_video(
             chat_id=CHANNEL_ID, video=gdrive_direct(ctx.args[1]), thumbnail=gdrive_direct(ctx.args[2]),
-            caption=caption, parse_mode=ParseMode.HTML, supports_streaming=True,
-            read_timeout=300, write_timeout=300, connect_timeout=60,
+            caption=f"🎬 <b>{html.escape(title)}</b>", parse_mode=ParseMode.HTML, supports_streaming=True,
+            read_timeout=300, write_timeout=300, connect_timeout=60
         )
-        await update.message.reply_text(f"✅ G-Drive वीडियो '{title}' सफलतापूर्वक पोस्ट हो गया!")
+        await update.message.reply_text(f"✅ Posted '{title}' successfully!")
     except Exception as exc:
-        await update.message.reply_text(f"❌ त्रुटि:\n<code>{html.escape(str(exc))}</code>", parse_mode=ParseMode.HTML)
+        await update.message.reply_text(f"❌ Error:\n<code>{html.escape(str(exc))}</code>", parse_mode=ParseMode.HTML)
 
 async def post_video(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
-        await update.message.reply_text("❌ यह कमांड केवल एडमिन के लिए है।"); return
+        await update.message.reply_text("❌ Admin only."); return
     if len(ctx.args) != 3:
-        await update.message.reply_text(
-            "✅ <b>Usage:</b>\n<code>/postvideo Movie_Name video_file_id thumb_file_id</code>\n(Note: For large files on Telegram).",
-            parse_mode=ParseMode.HTML); return
+        await update.message.reply_text("✅ <b>Usage:</b>\n<code>/postvideo Name video_id thumb_id</code>", parse_mode=ParseMode.HTML); return
     try:
         movie_name = ctx.args[0].replace("_", " ")
-        caption = f"🎬 <b>{html.escape(movie_name)}</b>"
-        await update.message.reply_text("⏳ File ID से वीडियो पोस्ट किया जा रहा है...")
+        await update.message.reply_text(f"⏳ Posting '{movie_name}' from File ID...")
         await ctx.bot.send_video(
             chat_id=CHANNEL_ID, video=ctx.args[1], thumb=ctx.args[2],
-            caption=caption, parse_mode=ParseMode.HTML
+            caption=f"🎬 <b>{html.escape(movie_name)}</b>", parse_mode=ParseMode.HTML
         )
-        await update.message.reply_text(f"✅ File ID वीडियो '{movie_name}' सफलतापूर्वक पोस्ट हो गया!")
+        await update.message.reply_text(f"✅ Posted '{movie_name}' successfully!")
     except Exception as e:
-        await update.message.reply_text(f"❌ त्रुटि:\n<code>{html.escape(str(e))}</code>", parse_mode=ParseMode.HTML)
+        await update.message.reply_text(f"❌ Error:\n<code>{html.escape(str(e))}</code>", parse_mode=ParseMode.HTML)
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     log.error(f"Exception while handling an update:", exc_info=context.error)
 
-# --- Main Bot Logic (Using Polling - Perfect for Background Worker) ---
-def main() -> None:
+def run_bot():
     """Starts the bot using polling."""
     try:
         app = Application.builder().token(BOT_TOKEN).build()
@@ -108,13 +108,19 @@ def main() -> None:
         app.add_handler(CommandHandler("postdrive", postdrive))
         app.add_handler(CommandHandler("postvideo", post_video))
         app.add_error_handler(error_handler)
-        
-        log.info("बॉट Polling मोड में शुरू हो रहा है…")
+        log.info("Bot starting in polling mode...")
         app.run_polling()
-        
     except Exception as e:
-        log.critical(f"बॉट शुरू करने में विफल: {e}")
+        log.critical(f"Failed to start bot: {e}")
         raise
 
+# --- Main Execution ---
 if __name__ == "__main__":
-    main()
+    # Run the bot in a separate thread
+    bot_thread = threading.Thread(target=run_bot)
+    bot_thread.start()
+    
+    # Run the web server in the main thread
+    log.info("Starting web server to keep the service alive...")
+    run_web_server()
+
