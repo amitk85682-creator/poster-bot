@@ -69,8 +69,9 @@ async def start(update: Update, _: ContextTypes.DEFAULT_TYPE):
 async def postdrive(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         await update.message.reply_text("❌ Admin only."); return
+    # For postdrive, the correct argument name is 'thumbnail'
     if len(ctx.args) < 3:
-        await update.message.reply_text("✅ <b>Usage:</b>\n<code>/postdrive \"Title\" GDriveLink ThumbLink</code>", parse_mode=Parse_mode.HTML); return
+        await update.message.reply_text("✅ <b>Usage:</b>\n<code>/postdrive \"Title\" GDriveLink ThumbLink</code>", parse_mode=ParseMode.HTML); return
     try:
         title = ctx.args[0]
         await update.message.reply_text(f"⏳ Posting '{title}' from G-Drive...")
@@ -91,9 +92,15 @@ async def post_video(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     try:
         movie_name = ctx.args[0].replace("_", " ")
         await update.message.reply_text(f"⏳ Posting '{movie_name}' from File ID...")
+        # ==========================================================
+        # THE FIX IS HERE: changed 'thumb' to 'thumbnail'
+        # ==========================================================
         await ctx.bot.send_video(
-            chat_id=CHANNEL_ID, video=ctx.args[1], thumb=ctx.args[2],
-            caption=f"🎬 <b>{html.escape(movie_name)}</b>", parse_mode=ParseMode.HTML
+            chat_id=CHANNEL_ID,
+            video=ctx.args[1],
+            thumbnail=ctx.args[2], # <-- Corrected from 'thumb'
+            caption=f"🎬 <b>{html.escape(movie_name)}</b>",
+            parse_mode=ParseMode.HTML
         )
         await update.message.reply_text(f"✅ Posted '{movie_name}' successfully!")
     except Exception as e:
