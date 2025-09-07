@@ -4,6 +4,7 @@ import re
 import html
 import logging
 import threading
+import asyncio
 from flask import Flask
 from dotenv import load_dotenv
 from telegram import Update
@@ -16,7 +17,8 @@ app = Flask(__name__)
 
 @app.route('/')
 def hello_world():
-    return 'Bot is running!'
+    # This is the endpoint Render will check to see if the service is live.
+    return 'Bot is alive and running!'
 
 def run_web_server():
     # Render provides the PORT environment variable.
@@ -101,7 +103,11 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     log.error(f"Exception while handling an update:", exc_info=context.error)
 
 def run_bot():
-    """Starts the bot using polling."""
+    """Sets up the event loop and starts the bot."""
+    # This is the fix: create a new event loop for this thread
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
     try:
         app = Application.builder().token(BOT_TOKEN).build()
         app.add_handler(CommandHandler("start", start))
@@ -111,16 +117,16 @@ def run_bot():
         log.info("Bot starting in polling mode...")
         app.run_polling()
     except Exception as e:
-        log.critical(f"Failed to start bot: {e}")
+        log.critical(f"Failed to start bot in its thread: {e}")
         raise
 
 # --- Main Execution ---
 if __name__ == "__main__":
+    log.info("Starting application...")
     # Run the bot in a separate thread
     bot_thread = threading.Thread(target=run_bot)
     bot_thread.start()
     
-    # Run the web server in the main thread
+    # Run the web server in the main thread to keep the service alive
     log.info("Starting web server to keep the service alive...")
     run_web_server()
-
