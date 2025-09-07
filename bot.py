@@ -131,16 +131,13 @@ async def post_video(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(error_msg, parse_mode=ParseMode.HTML)
         log.exception("post_video failed")
 
-# --- Error Handler (नया फंक्शन) ---
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
-    """Logs the error and sends a message to the admin."""
+    """Logs the error."""
     log.error(f"Exception while handling an update:", exc_info=context.error)
-    # आप चाहें तो यहाँ एडमिन को टेलीग्राम पर एरर का मैसेज भी भेज सकते हैं
-    # await context.bot.send_message(chat_id=ADMIN_ID, text=f"An error occurred: {context.error}")
 
-# --- Main Bot Logic ---
-def main():
-    """Starts the bot."""
+# --- Main Bot Logic (Updated for Webhooks) ---
+def main() -> None:
+    """Starts the bot using webhooks for deployment on a server like Render."""
     try:
         app = Application.builder().token(BOT_TOKEN).build()
         
@@ -149,14 +146,32 @@ def main():
         app.add_handler(CommandHandler("postdrive", postdrive))
         app.add_handler(CommandHandler("postvideo", post_video))
         
-        # Add error handler (सबसे महत्वपूर्ण बदलाव)
+        # Add error handler
         app.add_error_handler(error_handler)
         
-        log.info("बॉट शुरू हो रहा है…")
-        app.run_polling()
+        # --- Webhook Setup for Render ---
+        # Render provides the PORT environment variable.
+        # It throws a KeyError if it's not set, which is fine as this script is for deployment.
+        PORT = int(os.environ.get("PORT"))
+
+        # RENDER_EXTERNAL_URL is the public URL of your service (e.g., your-app.onrender.com)
+        # It is automatically set by Render.
+        WEBHOOK_URL = f"https://{os.getenv('RENDER_EXTERNAL_URL')}/{BOT_TOKEN}"
         
+        log.info(f"Starting bot, listening on port {PORT}")
+        
+        # This command sets the webhook with Telegram and starts the bot's internal web server.
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            url_path=BOT_TOKEN,
+            webhook_url=WEBHOOK_URL
+        )
+        
+    except KeyError:
+        log.critical("ERROR: PORT environment variable not set. This script is intended for webhook deployment on a platform like Render.")
     except Exception as e:
-        log.critical(f"बॉट शुरू करने में विफल: {e}")
+        log.critical(f"Failed to start bot: {e}")
         raise
 
 if __name__ == "__main__":
