@@ -1,72 +1,105 @@
-import logging
+#!/usr/bin/env python3
+"""
+MyVideoPoster
+A simple admin-only bot that can:
+  /start  – alive check
+  /postvideo <title> <video_file_id> <thumb_file_id> [caption]
+Video goes to CHANNEL_ID with custom thumbnail.
+"""
+
+import os, html, logging
+from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
-from telegram.error import TelegramError
-import os
-from dotenv import load_dotenv
+from telegram.constants import ParseMode
 
-# Logging setup
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
-)
-logger = logging.getLogger(__name__)
-
-# Load environment variables
-load_dotenv()
+load_dotenv()          # reads .env file
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL_ID = os.getenv("CHANNEL_ID")
-ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "").split(",") if id]
+ADMIN_ID  = int(os.getenv("ADMIN_ID"))
+CHANNEL_ID= os.getenv("CHANNEL_ID")
 
-# Admin-only decorator
-def admin_only(func):
-    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user_id = update.effective_user.id
-        if user_id not in ADMIN_IDS:
-            await update.message.reply_text("यह कमांड केवल एडमिन्स के लिए है!")
-            return
-        return await func(update, context)
-    return wrapper
+logging.basicConfig(
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    level=logging.INFO,
+)
+log = logging.getLogger("MyVideoPoster")
 
-# /start command
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("हाय! मैं MyVideoPoster बॉट हूँ। /postvideo कमांड का उपयोग करके वीडियो और थंबनेल पोस्ट करें।")
+# ---------- helpers ----------
+def is_admin(user_id: int) -> bool:
+    return user_id == ADMIN_ID
 
-# /postvideo command
-@admin_only
-async def post_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if len(context.args) != 3:
+# ---------- handlers ----------
+async def start(update: Update, _: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🤖 MyVideoPoster is alive!\nUse /postvideo to upload.")
+
+async def postvideo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if not is_admin(user.id):
+        await update.message.reply_text("❌  Admin only.")
+        return
+
+    if len(ctx.args) < 3:
         await update.message.reply_text(
-            "उपयोग: /postvideo <मूवी_का_नाम> <वीडियो_file_id> <थंबनेल_file_id>"
+            "✅  Usage:\n"
+            "<code>/postvideo Title video_file_id thumb_file_id [caption]</code>",
+            parse_mode=ParseMode.HTML
         )
         return
 
-    movie_name, video_file_id, thumbnail_file_id = context.args
+    title   = html.escape(ctx.args[0])
+    vid_fid = ctx.args[1]
+    thm_fid = ctx.args[2]
+    caption = html.escape(" ".join(ctx.args[3:])) if len(ctx.args) > 3 else title
 
     try:
-        await context.bot.send_video(
+        msg = await ctx.bot.send_video(
             chat_id=CHANNEL_ID,
-            video=video_file_id,
-            thumb=thumbnail_file_id,
-            caption=f"🎬 {movie_name}",
-            supports_streaming=True
+            video=vid_fid,
+            thumbnail=thm_fid,
+            caption=caption,
+            parse_mode=ParseMode.HTML,
+            supports_streaming=True,
         )
-        await update.message.reply_text(f"वीडियो '{movie_name}' सफलतापूर्वक {CHANNEL_ID} पर पोस्ट हो गया!")
-    except TelegramError as e:
-        await update.message.reply_text(f"एरर: {e.message}")
-        logger.error(f"वीडियो पोस्ट करने में त्रुटि: {e}")
+        await update.message.reply_text("✅  Posted with custom thumbnail!")
+        log.info("Posted video %s -> %s", title, msg.link)
+    except Exception as exc:
+        await update.message.reply_text(f"❌  Error:\n<code>{exc}</code>", parse_mode=ParseMode.HTML)
+        log.exception("postvideo failed")
 
-# Error handler
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logger.error(f"अपडेट {update} के कारण त्रुटि: {context.error}")
-    if update:
-        await update.message.reply_text("कुछ गलत हुआ। कृपया बाद में पुनः प्रयास करें।")
-
+# ---------- main ----------
 def main():
-    application = Application.builder().token(BOT_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("postvideo", post_video))
-    application.add_error_handler(error_handler)
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    app = Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("postvideo", postvideo))
+    log.info("Bot starting…")
+    app.run_polling()
 
 if __name__ == "__main__":
     main()
+--------------------------------------------------
+
+--------------------------------------------------
+5. इंस्टॉल + रन (Linux / Windows PowerShell)
+# 1. फोल्डर में जाएँ
+cd myvideoposter
+
+# 2. वर्चुअल एनवायरनमेंट (ऑप्शनल)
+python -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+
+# 3. डिपेंडेंसी
+pip install -r requirements.txt
+
+# 4. बॉट चलाएँ
+python bot.py
+--------------------------------------------------
+
+--------------------------------------------------
+6. इस्तेमाल (वही प्रोसेस)
+1. मूवी और थंबनेल फोटो किसी प्राइवेट चैट/चैनल पर अपलोड करें।  
+2. @JsonDumpBot से दोनों file_id निकालें।  
+3. बॉट को प्राइवेट में:  
+   `/postvideo Dobaaraa BQACAgQAAxkB…video… AgACAgQAAxkB…thumb… यहाँ कैप्शन`  
+4. वीडियो आपके चैनल पर कस्टम थंबनेल के साथ पोस्ट हो जाएगा!
+
+बस! कोई और फ़ाइल/कोड नहीं चाहिए। अगर कोई एरर आए तो लॉग टर्मिनल में दिखेगा – वही कॉपी-पेस्ट करके बताइए, मैं फिक्स कर दूँगा।
