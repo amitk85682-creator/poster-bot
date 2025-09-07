@@ -12,7 +12,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 from telegram.constants import ParseMode
 from urllib.parse import urlparse
 
-# --- Flask Web Server Setup (to keep Render's Free Web Service alive) ---
+# --- Flask Web Server (to keep Render's Free Web Service alive) ---
 app = Flask(__name__)
 
 @app.route('/')
@@ -25,7 +25,7 @@ def run_web_server():
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
 
-# --- Telegram Bot Setup ---
+# --- Telegram Bot ---
 # Load environment variables
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -70,7 +70,7 @@ async def postdrive(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         await update.message.reply_text("❌ Admin only."); return
     if len(ctx.args) < 3:
-        await update.message.reply_text("✅ <b>Usage:</b>\n<code>/postdrive \"Title\" GDriveLink ThumbLink</code>", parse_mode=ParseMode.HTML); return
+        await update.message.reply_text("✅ <b>Usage:</b>\n<code>/postdrive \"Title\" GDriveLink ThumbLink</code>", parse_mode=Parse_mode.HTML); return
     try:
         title = ctx.args[0]
         await update.message.reply_text(f"⏳ Posting '{title}' from G-Drive...")
@@ -103,11 +103,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     log.error(f"Exception while handling an update:", exc_info=context.error)
 
 def run_bot():
-    """Sets up the event loop and starts the bot."""
-    # This is the fix: create a new event loop for this thread
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
+    """Starts the bot in the main thread."""
     try:
         app = Application.builder().token(BOT_TOKEN).build()
         app.add_handler(CommandHandler("start", start))
@@ -117,16 +113,18 @@ def run_bot():
         log.info("Bot starting in polling mode...")
         app.run_polling()
     except Exception as e:
-        log.critical(f"Failed to start bot in its thread: {e}")
+        log.critical(f"Failed to start bot: {e}")
         raise
 
 # --- Main Execution ---
 if __name__ == "__main__":
     log.info("Starting application...")
-    # Run the bot in a separate thread
-    bot_thread = threading.Thread(target=run_bot)
-    bot_thread.start()
     
-    # Run the web server in the main thread to keep the service alive
-    log.info("Starting web server to keep the service alive...")
-    run_web_server()
+    # Run the web server in a separate, secondary thread
+    web_thread = threading.Thread(target=run_web_server)
+    web_thread.daemon = True  # Allows the main bot to exit gracefully
+    web_thread.start()
+    
+    # Run the bot in the main thread, as required by the library
+    run_bot()
+
