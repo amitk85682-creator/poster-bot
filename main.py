@@ -23,7 +23,7 @@ class HealthHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
         self.end_headers()
-        self.wfile.write(b"Force Subscribe Bot Running!")
+        self.wfile.write(b"Kavya Bot is Running!")
     def log_message(self, format, *args): pass
 
 def run_health_server():
@@ -81,62 +81,60 @@ def create_join_buttons(not_joined: list, main_chat_id: int) -> InlineKeyboardMa
 
 # ============ COMMAND HANDLERS ============
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start command"""
+    """Start command - Kavya Persona"""
     user = update.effective_user
     
     if update.effective_chat.type == "private":
         text = (
-            f"👋 Hello {user.first_name}!\n\n"
-            "🤖 **I'm a Force Subscribe Bot**\n\n"
-            "📌 **My Features:**\n"
-            "• Force users to join channels before chatting\n"
-            "• Support multiple channels per group\n"
-            "• Easy admin management\n\n"
+            f"✨ **Namaste {user.first_name}!**\n\n"
+            "Main hoon **Kavya**, aapki personal Group Assistant! 💖\n\n"
+            "🌸 **Main kya kar sakti hoon?**\n"
+            "• Main ensure karti hoon ki users channels join karein.\n"
+            "• Groups ko spam se bachati hoon.\n"
+            "• Multiple channels ko support karti hoon.\n\n"
             "📝 **Admin Commands:**\n"
-            "`/addforcesub` - Add force sub channel\n"
-            "`/removeforcesub` - Remove force sub channel\n"
-            "`/listforcesub` - List all channels\n"
-            "`/clearforcesub` - Remove all channels\n\n"
-            "➕ Add me to your group and make me admin!"
+            "• `/addforcesub` - Channel add karein\n"
+            "• `/listforcesub` - List dekhein\n"
+            "• `/removeforcesub` - Channel hatayein\n\n"
+            "Mujhe apne group me add karein aur **Admin** banayein! 🚀"
         )
         await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
     else:
-        await update.message.reply_text("✅ I'm active! Use /help for commands.")
+        await update.message.reply_text("✨ Kavya is online! Help ke liye /help use karein.")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Help command"""
     text = (
-        "📚 **Force Subscribe Bot Help**\n\n"
-        "**Setup Steps:**\n"
-        "1️⃣ Add bot to your GROUP as Admin\n"
-        "2️⃣ Add bot to your CHANNEL as Admin\n"
-        "3️⃣ Use `/addforcesub` in group\n\n"
-        "**Commands (Admin Only):**\n"
-        "• `/addforcesub <channel_link>` - Add channel\n"
-        "• `/removeforcesub <channel_id>` - Remove channel\n"
-        "• `/listforcesub` - Show all channels\n"
-        "• `/clearforcesub` - Remove all\n\n"
-        "**Example:**\n"
-        "`/addforcesub https://t.me/yourchannel`"
+        "📚 **Kavya Help Menu** 🌸\n\n"
+        "**Setup kaise karein?**\n"
+        "1️⃣ Mujhe apne **Group** me Admin banayein.\n"
+        "2️⃣ Mujhe apne **Channel** me Admin banayein.\n"
+        "3️⃣ Group me ye command use karein:\n"
+        "`/addforcesub <channel_link>`\n\n"
+        "**Admin Commands:**\n"
+        "• `/addforcesub` - Channel link ke sath use karein\n"
+        "• `/removeforcesub` - Channel ID ke sath use karein\n"
+        "• `/listforcesub` - Sabhi channels ki list\n"
+        "• `/clearforcesub` - Sab kuch delete karein\n\n"
+        "Agar koi issue ho to owner se contact karein! 💖"
     )
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
 
 async def add_force_sub(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Add a force subscribe channel"""
     if update.effective_chat.type == "private":
-        await update.message.reply_text("⚠️ Use this command in a group!")
+        await update.message.reply_text("⚠️ Ye command group me use karein, dear!")
         return
     
     if not await is_admin(update, context):
-        await update.message.reply_text("❌ Only admins can use this command!")
+        await update.message.reply_text("❌ Sorry! Sirf Admins ye kar sakte hain.")
         return
     
     if not context.args:
         await update.message.reply_text(
-            "📝 **Usage:** `/addforcesub <channel_link>`\n\n"
+            "📝 **Aise use karein:** `/addforcesub <channel_link>`\n\n"
             "**Example:**\n"
-            "`/addforcesub https://t.me/yourchannel`\n"
-            "`/addforcesub https://t.me/+ABC123xyz`",
+            "`/addforcesub https://t.me/yourchannel`",
             parse_mode=ParseMode.MARKDOWN
         )
         return
@@ -146,14 +144,9 @@ async def add_force_sub(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Extract channel username or ID from link
     try:
         if "t.me/+" in channel_link or "t.me/joinchat/" in channel_link:
-            # Private channel - user needs to provide channel ID separately
             await update.message.reply_text(
-                "📝 For private channels, use:\n"
-                "`/addforcesub <channel_id> <invite_link>`\n\n"
-                "Example:\n"
-                "`/addforcesub -1001234567890 https://t.me/+ABC123`\n\n"
-                "💡 Get channel ID by forwarding a message from channel to @userinfobot",
-                parse_mode=ParseMode.MARKDOWN
+                "📝 Private channels ke liye ye use karein:\n"
+                "`/addprivateforcesub <channel_id> <invite_link>`"
             )
             return
         
@@ -165,17 +158,14 @@ async def add_force_sub(update: Update, context: ContextTypes.DEFAULT_TYPE):
             channel_title = channel.title
             invite_link = channel_link
         else:
-            await update.message.reply_text("❌ Invalid link format!")
+            await update.message.reply_text("❌ Link galat lag raha hai! Check karein.")
             return
             
     except Exception as e:
         logger.error(f"Error getting channel: {e}")
         await update.message.reply_text(
-            "❌ Cannot access channel!\n\n"
-            "Make sure:\n"
-            "1. Bot is admin in the channel\n"
-            "2. Link is correct\n"
-            "3. Channel exists"
+            "❌ Oops! Main channel access nahi kar pa rahi.\n\n"
+            "Please check karein ki main wahan **Admin** hoon ya nahi! 🥺"
         )
         return
     
@@ -183,10 +173,10 @@ async def add_force_sub(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         bot_member = await context.bot.get_chat_member(channel_id, context.bot.id)
         if bot_member.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
-            await update.message.reply_text(f"❌ Make me admin in **{channel_title}** first!", parse_mode=ParseMode.MARKDOWN)
+            await update.message.reply_text(f"❌ Pehle mujhe **{channel_title}** me Admin banayein! 🥺", parse_mode=ParseMode.MARKDOWN)
             return
     except:
-        await update.message.reply_text("❌ Cannot check bot permissions in channel!")
+        await update.message.reply_text("❌ Main permissions check nahi kar pa rahi!")
         return
     
     # Save to database
@@ -202,31 +192,29 @@ async def add_force_sub(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if success:
         await update.message.reply_text(
-            f"✅ **Force Subscribe Added!**\n\n"
+            f"✅ **Done! Channel Add Ho Gaya!** ✨\n\n"
             f"📌 Group: `{main_chat.title}`\n"
             f"📢 Channel: `{channel_title}`\n"
             f"🔗 Link: {invite_link}\n\n"
-            f"Now users must join this channel to chat!",
+            f"Ab sabko join karna padega! 😉",
             parse_mode=ParseMode.MARKDOWN
         )
     else:
-        await update.message.reply_text("❌ Failed to add! Maybe already exists.")
+        await update.message.reply_text("❌ Add nahi ho paya, shayad pehle se added hai.")
 
 async def add_force_sub_private(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Add private channel with ID"""
     if update.effective_chat.type == "private":
-        await update.message.reply_text("⚠️ Use this command in a group!")
+        await update.message.reply_text("⚠️ Ye command group me use karein!")
         return
     
     if not await is_admin(update, context):
-        await update.message.reply_text("❌ Only admins can use this command!")
+        await update.message.reply_text("❌ Sirf Admins allow hain!")
         return
     
     if len(context.args) < 2:
         await update.message.reply_text(
-            "📝 **Usage:** `/addprivateforcesub <channel_id> <invite_link>`\n\n"
-            "**Example:**\n"
-            "`/addprivateforcesub -1001234567890 https://t.me/+ABC123`",
+            "📝 **Usage:** `/addprivateforcesub <channel_id> <invite_link>`",
             parse_mode=ParseMode.MARKDOWN
         )
         return
@@ -235,21 +223,16 @@ async def add_force_sub_private(update: Update, context: ContextTypes.DEFAULT_TY
         channel_id = int(context.args[0])
         invite_link = context.args[1]
     except ValueError:
-        await update.message.reply_text("❌ Invalid channel ID! Must be a number.")
+        await update.message.reply_text("❌ Invalid Channel ID!")
         return
     
-    # Get channel info
     try:
         channel = await context.bot.get_chat(channel_id)
         channel_title = channel.title
     except Exception as e:
-        await update.message.reply_text(
-            "❌ Cannot access channel!\n"
-            "Make sure bot is admin in the channel."
-        )
+        await update.message.reply_text("❌ Channel access denied! Make sure main Admin hoon.")
         return
     
-    # Save to database
     main_chat = update.effective_chat
     success = ForceSubDB.add_force_sub(
         main_chat_id=main_chat.id,
@@ -261,33 +244,27 @@ async def add_force_sub_private(update: Update, context: ContextTypes.DEFAULT_TY
     )
     
     if success:
-        await update.message.reply_text(
-            f"✅ **Private Channel Added!**\n\n"
-            f"📢 Channel: `{channel_title}`\n"
-            f"🆔 ID: `{channel_id}`",
-            parse_mode=ParseMode.MARKDOWN
-        )
+        await update.message.reply_text(f"✅ **Private Channel Added!** ✨\n📢 `{channel_title}`", parse_mode=ParseMode.MARKDOWN)
     else:
         await update.message.reply_text("❌ Failed to add!")
 
 async def remove_force_sub(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Remove a force subscribe channel"""
     if update.effective_chat.type == "private":
-        await update.message.reply_text("⚠️ Use this command in a group!")
+        await update.message.reply_text("⚠️ Group me use karein!")
         return
     
     if not await is_admin(update, context):
-        await update.message.reply_text("❌ Only admins can use this command!")
+        await update.message.reply_text("❌ Sirf Admins allow hain!")
         return
     
     if not context.args:
-        # Show list with IDs
         channels = ForceSubDB.get_force_subs(update.effective_chat.id)
         if not channels:
-            await update.message.reply_text("📭 No force subscribe channels set!")
+            await update.message.reply_text("📭 Koi channel set nahi hai!")
             return
         
-        text = "📝 **To remove, use:**\n`/removeforcesub <channel_id>`\n\n**Current Channels:**\n"
+        text = "📝 **Remove karne ke liye ID use karein:**\n`/removeforcesub <channel_id>`\n\n**Current Channels:**\n"
         for ch in channels:
             text += f"• `{ch['target_chat_id']}` - {ch.get('target_chat_title', 'Unknown')}\n"
         
@@ -303,27 +280,23 @@ async def remove_force_sub(update: Update, context: ContextTypes.DEFAULT_TYPE):
     success = ForceSubDB.remove_force_sub(update.effective_chat.id, target_id)
     
     if success:
-        await update.message.reply_text("✅ Channel removed from force subscribe!")
+        await update.message.reply_text("✅ Channel remove kar diya gaya hai! 🗑️")
     else:
         await update.message.reply_text("❌ Failed to remove!")
 
 async def list_force_sub(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """List all force subscribe channels"""
     if update.effective_chat.type == "private":
-        await update.message.reply_text("⚠️ Use this command in a group!")
+        await update.message.reply_text("⚠️ Group me use karein!")
         return
     
     channels = ForceSubDB.get_force_subs(update.effective_chat.id)
     
     if not channels:
-        await update.message.reply_text(
-            "📭 **No Force Subscribe Channels**\n\n"
-            "Use `/addforcesub` to add channels!",
-            parse_mode=ParseMode.MARKDOWN
-        )
+        await update.message.reply_text("📭 **Filhal koi channel set nahi hai!**")
         return
     
-    text = f"📋 **Force Subscribe Channels**\n"
+    text = f"📋 **Subscription List** 🌸\n"
     text += f"👥 Group: `{update.effective_chat.title}`\n\n"
     
     for idx, ch in enumerate(channels, 1):
@@ -332,77 +305,59 @@ async def list_force_sub(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"   🔗 {ch['target_link']}\n\n"
     
     text += f"📊 Total: {len(channels)} channel(s)"
-    
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
 
 async def clear_force_sub(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Clear all force subscribe channels"""
-    if update.effective_chat.type == "private":
-        await update.message.reply_text("⚠️ Use this command in a group!")
-        return
-    
     if not await is_admin(update, context):
-        await update.message.reply_text("❌ Only admins can use this command!")
+        await update.message.reply_text("❌ Only Admins!")
         return
     
     success = ForceSubDB.remove_all_force_subs(update.effective_chat.id)
-    
     if success:
-        await update.message.reply_text("✅ All force subscribe channels removed!")
+        await update.message.reply_text("✅ Sabhi channels hata diye gaye hain! 🧹")
     else:
-        await update.message.reply_text("❌ Failed to clear!")
+        await update.message.reply_text("❌ Failed!")
 
 # ============ MESSAGE HANDLER ============
 async def check_force_sub(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Check if user is subscribed to all required channels"""
-    # Ignore private chats
-    if update.effective_chat.type == "private":
-        return
-    
-    # Ignore if no message
-    if not update.message:
+    if update.effective_chat.type == "private" or not update.message:
         return
     
     user = update.effective_user
     chat = update.effective_chat
     
-    # Ignore bots
     if user.is_bot:
         return
     
-    # Skip admins
     if await is_admin(update, context, user.id):
         return
     
-    # Get force sub channels for this group
     channels = ForceSubDB.get_force_subs(chat.id)
-    
-    # No force sub set
     if not channels:
         return
     
-    # Check subscription
     is_subscribed, not_joined = await check_subscription(context, user.id, channels)
     
     if is_subscribed:
-        return  # User is subscribed, allow message
+        return
     
-    # User not subscribed - delete message and warn
+    # User not subscribed - DELETE MESSAGE FIRST
     try:
         await update.message.delete()
     except Exception as e:
         logger.warning(f"Cannot delete message: {e}")
     
-    # Create warning message
+    # Create warning message with Mention
+    # Using user.mention_markdown() allows clicking the name
+    user_mention = f"[{user.first_name}](tg://user?id={user.id})"
+    
     warning_text = (
-        f"⚠️ **Hey {user.first_name}!**\n\n"
-        f"You must join the following channel(s) to send messages here:\n\n"
+        f"🚫 **Oops {user_mention}!**\n\n"
+        f"Maine apka message **delete** kar diya hai kyunki aapne channels join nahi kiye! 🥺\n\n"
+        f"👇 **Chat karne ke liye please niche diye gaye channels join karein:**\n"
     )
-    
-    for idx, ch in enumerate(not_joined, 1):
-        warning_text += f"{idx}. **{ch.get('target_chat_title', 'Channel')}**\n"
-    
-    warning_text += "\n👇 Click buttons below to join, then click verify!"
     
     keyboard = create_join_buttons(not_joined, chat.id)
     
@@ -443,27 +398,23 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id = int(data.split("_")[1])
         user = query.from_user
         
-        # Get force sub channels
         channels = ForceSubDB.get_force_subs(chat_id)
         
         if not channels:
-            await query.answer("✅ No restrictions!", show_alert=True)
-            await query.message.delete()
+            await query.answer("✅ Koi restrictions nahi hain!", show_alert=True)
+            try: await query.message.delete()
+            except: pass
             return
         
-        # Check subscription
         is_subscribed, not_joined = await check_subscription(context, user.id, channels)
         
         if is_subscribed:
-            await query.answer("✅ Verified! You can now chat.", show_alert=True)
-            try:
-                await query.message.delete()
-            except:
-                pass
+            await query.answer("✅ Verification Successful! Welcome back! ✨", show_alert=True)
+            try: await query.message.delete()
+            except: pass
         else:
-            channels_names = ", ".join([ch.get('target_chat_title', 'Channel') for ch in not_joined])
             await query.answer(
-                f"❌ Please join: {channels_names}",
+                f"❌ Aapne abhi bhi channels join nahi kiye! 🥺",
                 show_alert=True
             )
 
@@ -476,8 +427,15 @@ def main():
     # Start health server
     threading.Thread(target=run_health_server, daemon=True).start()
     
-    # Build application
-    application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    # Build application with Increased Timeouts for Render
+    application = (
+        Application.builder()
+        .token(TELEGRAM_BOT_TOKEN)
+        .read_timeout(30)
+        .write_timeout(30)
+        .connect_timeout(30)
+        .build()
+    )
     
     # Command handlers
     application.add_handler(CommandHandler("start", start_command))
@@ -497,7 +455,7 @@ def main():
         check_force_sub
     ))
     
-    print("🚀 Force Subscribe Bot Started!")
+    print("🚀 Kavya Bot Started!")
     application.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
