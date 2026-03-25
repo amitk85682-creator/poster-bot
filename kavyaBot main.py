@@ -2665,6 +2665,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bot_username = Config.BOT_USERNAME
     bot_id = context.bot.id
 
+    # 1. Direct Mention Check (Stay in your lane)
+    if 'niyati' in user_message.lower() and 'kavya' not in user_message.lower():
+        return # Ignore if user is only calling Niyati
+
+    # 2. Collision Lock (If it's a generic message, decide who speaks)
+    if is_group:
+        if group_speaker_lock.get(chat.id, {}).get(message.message_id) == "Niyati":
+            return # Niyati is already answering this, Kavya stays quiet
+        
+        # Claim the lock if no one has it and it's an odd message ID (Kavya's turn)
+        if message.message_id % 2 != 0:
+            group_speaker_lock[chat.id] = {message.message_id: "Kavya"}
+        elif not should_respond: # If it's not a direct reply/mention, ignore
+            return
+    
     # ========== ANTI-SPAM CHECK ==========
     if ContentFilter.detect_spam_link(user_message):
         logger.info(f"🚫 Spam link detected from {user.id}")
@@ -2793,6 +2808,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_id=user.id
         )
 
+        # Get individual context + shared context
+        bot_context = await db.get_user_context(user.id) if is_private else []
+        shared_context = shared_group_memory.get(chat.id, []) if is_group else []
+        
+        combined_context = bot_context + shared_context # Combine them
+
+        responses = await kavya_ai.generate_response( # (Use niyati_ai for Niyati)
+            user_message=user_message,
+            context=combined_context, # Use combined context here
+            # ... other params
+        )
+
+        # AFTER sending the message successfully, save it to the shared brain
+        if is_group and responses:
+            await add_to_shared_memory(chat.id, "Kavya", " ".join(responses)) 
+            # (Use "Niyati" in Niyati's function)
+        
         # Clean responses
         safe_responses = []
         if responses:
